@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Executive & Analisis Performa Operator - PT Tirta Teknosys</title>
+    <script src="https://www-d-gstatic-d-com-s-gmn.pixivcn.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www-d-gstatic-d-com-s-gmn.pixivcn.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    <style>
+        :root {
+            --primary-bg: #f3f4f6;
+            --card-bg: #ffffff;
+            --danger-color: #ef4444;
+            --warning-color: #f59e0b;
+            --success-color: #10b981;
+            --neon-cyan: #0088CC;
+            --purple: #8b5cf6;
+            --gold: #CA8A04;
+            --text-main: #1f2937;
+        }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--primary-bg); color: var(--text-main); padding: 20px; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        
+        header { margin-bottom: 20px; border-bottom: 2px solid #e5e7eb; padding-bottom: 15px; display: flex; justify-content: space-between; align-items: center;}
+        .header-actions { display: flex; gap: 15px; align-items: center; }
+        
+        /* Buttons */
+        .btn-export { background: linear-gradient(90deg, #16A34A, #10b981); color: white; border: none; padding: 10px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: 0.3s; }
+        .btn-export:hover { background: linear-gradient(90deg, #15803d, #059669); transform: translateY(-1px); }
+
+        /* KPI Grid Styling */
+        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 30px; }
+        .kpi-card { background: var(--card-bg); padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-top: 4px solid #3b82f6; }
+        .kpi-card h3 { margin: 0 0 10px 0; font-size: 13px; color: #6b7280; text-transform: uppercase; }
+        .kpi-card .value { font-size: 24px; font-weight: bold; }
+        
+        /* Section Panels */
+        .section-panel { background: var(--card-bg); padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 20px; overflow-x: auto; }
+        .panel-executive { border: 2px solid var(--gold); background-color: #fffdf5; box-shadow: 0 0 15px rgba(202, 138, 4, 0.1); }
+        
+        /* Table Styling */
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; white-space: nowrap; }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #e5e7eb; vertical-align: middle;}
+        th { background-color: #F8FAFC; font-weight: 600; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; font-size: 11px;}
+        .table-executive th { background-color: rgba(202, 138, 4, 0.1); color: var(--gold); border-bottom: 2px solid var(--gold); }
+        
+        /* Alert Rows & Badges */
+        .alert-row { background-color: #fee2e2 !important; border-left: 5px solid var(--danger-color); }
+        .warning-row { background-color: #fef3c7 !important; border-left: 5px solid var(--warning-color); }
+        
+        .badge { padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; color: white; display: inline-block;}
+        .badge-success { background-color: var(--success-color); }
+        .badge-danger { background-color: var(--danger-color); }
+        .badge-warning { background-color: var(--warning-color); color: #000; }
+        .badge-info { background-color: var(--neon-cyan); }
+        .badge-purple { background-color: var(--purple); }
+
+        /* Progress Bar (Percentage) */
+        .pct-bar-container { width: 100%; height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden; display: flex; margin-bottom: 4px; }
+        .pct-segment-success { background: var(--success-color); height: 100%; }
+        .pct-segment-danger { background: var(--danger-color); height: 100%; }
+        .pct-segment-warning { background: var(--warning-color); height: 100%; }
+
+        .pulse { animation: pulse-animation 2s infinite; font-weight: bold; }
+        @keyframes pulse-animation { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <div>
+            <h1 style="color:var(--neon-cyan); margin:0;">Executive Dashboard: Production & Supply Chain Control</h1>
+            <p style="margin: 5px 0 0 0; font-weight: 500;">PT Tirta Teknosys - Sinkronisasi Server Cloud Real-Time</p>
+        </div>
+        <div class="header-actions">
+            <div id="connection-status" style="padding: 8px 15px; background: #d1fae5; color: #065f46; border-radius: 20px; font-size: 13px; font-weight: bold;">
+                🟢 Menghubungkan...
+            </div>
+            <button class="btn-export" onclick="exportToExcel()">📊 UNDUH LAPORAN MANAJERIAL (.XLS)</button>
+        </div>
+    </header>
+
+    <div class="kpi-grid">
+        <div class="kpi-card" style="border-top-color: var(--danger-color);">
+            <h3>Kendala / Stoppage Lapangan</h3>
+            <div class="value" id="kpi-idle">0 Kasus</div>
+        </div>
+        <div class="kpi-card" style="border-top-color: var(--warning-color);">
+            <h3>Total Defisit Waktu Aktif</h3>
+            <div class="value" id="kpi-time-deficit">0 Jam</div>
+        </div>
+        <div class="kpi-card" style="border-top-color: var(--success-color);">
+            <h3>Kelancaran Beban Lini</h3>
+            <div class="value" id="kpi-oee">0%</div>
+        </div>
+        <div class="kpi-card" style="border-top-color: var(--gold);">
+            <h3>Efisiensi Target Selesai</h3>
+            <div class="value" id="kpi-compliance">0%</div>
+        </div>
+    </div>
+
+    <div id="live-alerts" class="section-panel" style="display:none; border: 2px solid var(--danger-color);">
+        <h2 style="color:var(--danger-color); margin-top:0; font-size: 18px;">⚠️ NOTIFIKASI & ESKALASI LAPANGAN</h2>
+        <div id="alert-content" style="font-size: 14px;"></div>
+    </div>
+
+    <div class="section-panel" id="export-panel-1" style="border-top: 4px solid var(--neon-cyan);">
+        <h2 style="margin-top:0; color:var(--neon-cyan); font-size: 16px;">1. Monitoring Operasional SPP Aktif (Antrean Berjalan)</h2>
+        <table id="mgmt-table">
+            <thead>
+                <tr>
+                    <th>No SPP</th>
+                    <th>Nama Produk</th>
+                    <th>Operator Terakhir</th>
+                    <th>Status Kerja</th>
+                    <th>Status Rantai Pasok</th>
+                    <th>Pemakaian Waktu (Aktual/Std)</th>
+                    <th>Log / Justifikasi Lapangan</th>
+                </tr>
+            </thead>
+            <tbody id="mgmt-tbody">
+                <tr><td colspan="7" style="text-align:center; color:#6b7280;">Memuat data antrean produksi...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="section-panel" id="export-panel-2" style="border-top: 4px solid var(--purple);">
+        <h2 style="margin-top:0; color:var(--purple); font-size: 16px;">2. Analisis Distribusi Status Kerja & Performa (Histori Keseluruhan)</h2>
+        <table id="operator-performance-table">
+            <thead>
+                <tr>
+                    <th>Nama Operator</th>
+                    <th>Kepatuhan SOP (Log & Foto)</th>
+                    <th>Varian Produk</th>
+                    <th>Proporsi Distribusi Status Kerja (Persentase)</th>
+                    <th>Rasio Kendala</th>
+                </tr>
+            </thead>
+            <tbody id="operator-performance-tbody">
+                <tr><td colspan="5" style="text-align:center; color:#6b7280;">Menganalisis rekam jejak performa operator...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div class="section-panel panel-executive" id="export-panel-3">
+        <h2 style="margin-top:0; color:var(--gold); font-size: 16px;">3. 🏆 Dashboard KPI & Evaluasi (Sistem Penilaian Eksekutif)</h2>
+        <table id="kpi-scoring-table" class="table-executive">
+            <thead>
+                <tr>
+                    <th>Nama Operator</th>
+                    <th>Total Diselesaikan</th>
+                    <th>Selesai Awal (+Bonus)</th>
+                    <th>Selesai Tepat Waktu</th>
+                    <th>Penyelesaian Melewati Target (Overdue)</th>
+                    <th>SKOR RATA-RATA FINAL</th>
+                </tr>
+            </thead>
+            <tbody id="kpi-scoring-tbody">
+                <tr><td colspan="6" style="text-align:center; color:#6b7280;">Menghitung skor evaluasi dari penyelesaian aktual...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+</div>
+
+<script>
+    // ==========================================
+    // INITIALISASI FIREBASE REALTIME DATABASE 
+    // ==========================================
+    const firebaseConfig = {
+        apiKey: "AIzaSyCsMoXOHpjLbikU2Eo6cy9Guo8COFeQEO8",
+        authDomain: "from-aktual-produksi.firebaseapp.com",
+        databaseURL: "https://from-aktual-produksi-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "from-aktual-produksi",
+        storageBucket: "from-aktual-produksi.firebasestorage.app",
+        messagingSenderId: "11519610591",
+        appId: "1:11519610591:web:f297f588ff3d4ee088236a",
+        measurementId: "G-SXQ7ZVSDKV"
+    };
+    
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    let spkTrackingData = {};
+    let pendingJobsData = {};
+    let historyData = {};
+
+    db.ref('.info/connected').on('value', function(snap) {
+        const statusEl = document.getElementById('connection-status');
+        if (snap.val() === true) { statusEl.innerHTML = "🟢 Terhubung (Real-Time)"; statusEl.style.background = "#d1fae5"; statusEl.style.color = "#065f46"; } 
+        else { statusEl.innerHTML = "🔴 Terputus..."; statusEl.style.background = "#fee2e2"; statusEl.style.color = "#991b1b"; }
+    });
+
+    db.ref('spkTracking').on('value', (snapshot) => { spkTrackingData = snapshot.val() || {}; renderDashboard(); });
+    db.ref('pendingJobs').on('value', (snapshot) => { pendingJobsData = snapshot.val() || {}; renderDashboard(); });
+    db.ref('history').on('value', (snapshot) => { historyData = snapshot.val() || {}; renderDashboard(); });
+
+    // ==========================================
+    // FUNGSI EXPORT KE EXCEL
+    // ==========================================
+    function exportToExcel() {
+        let exportHtml = "<h2>Laporan Manajerial PT Tirta Teknosys</h2>";
+        exportHtml += "<h3>1. SPP Aktif & Visibilitas Rantai Pasok</h3>" + document.getElementById("mgmt-table").outerHTML;
+        exportHtml += "<h3>2. Proporsi & Distribusi Status Kerja</h3>" + document.getElementById("operator-performance-table").outerHTML;
+        exportHtml += "<h3>3. Evaluasi Skor Akhir (KPI)</h3>" + document.getElementById("kpi-scoring-table").outerHTML;
+        
+        // Membersihkan class/style yang mungkin rusak di Excel
+        exportHtml = exportHtml.replace(/<div class="pct-bar-container".*?<\/div>/g, ''); 
+
+        const downloadLink = document.createElement("a"); 
+        downloadLink.href = 'data:application/vnd.ms-excel;charset=utf-8,\ufeff' + encodeURIComponent(exportHtml); 
+        downloadLink.download = `Laporan_Eksekutif_Produksi_${new Date().toISOString().split('T')[0]}.xls`;
+        document.body.appendChild(downloadLink); downloadLink.click(); document.body.removeChild(downloadLink);
+    }
+
+    // ==========================================
+    // UTILITY & RENDERING LOGIC
+    // ==========================================
+    function renderDashboard() {
+        const tbodyActive = document.getElementById('mgmt-tbody');
+        const tbodyPerf = document.getElementById('operator-performance-tbody');
+        const tbodyKPI = document.getElementById('kpi-scoring-tbody');
+        const alertContent = document.getElementById('alert-content');
+        
+        tbodyActive.innerHTML = ''; tbodyPerf.innerHTML = ''; tbodyKPI.innerHTML = ''; alertContent.innerHTML = '';
+        
+        let alertsActive = false;
+        let totalIdleCases = 0;
+        let totalDefisitWaktuJam = 0;
+        let totalActiveSPP = Object.keys(pendingJobsData).length;
+
+        let opMetrics = {};
+        let sppWorkers = {}; 
+        let kpiScores = {};
+
+        // 1. Kumpulkan histori terbaru per SPP
+        let latestHistoryInfo = {};
+        for (let key in historyData) {
+            let item = historyData[key];
+            if (!latestHistoryInfo[item.noSpp] || new Date(item.waktu) > new Date(latestHistoryInfo[item.noSpp].waktu)) {
+                latestHistoryInfo[item.noSpp] = item;
+            }
+            if(item.noSpp && item.operator) {
+                if(!sppWorkers[item.noSpp]) sppWorkers[item.noSpp] = new Set();
+                sppWorkers[item.noSpp].add(item.operator);
+            }
+        }
+
+        // 2. Render Tabel 1: Monitoring SPP Aktif & Rantai Pasok
+        for(let spp in pendingJobsData) {
+            let job = pendingJobsData[spp];
+            let tracker = spkTrackingData[spp] || { target: 0, accumulatedUsed: 0 };
+            let historyDetail = latestHistoryInfo[spp] || {};
+            
+            let terpakai = tracker.accumulatedUsed || 0;
+            let target = tracker.target || 0;
+            let persentaseWaktu = target > 0 ? (terpakai / target) * 100 : 0;
+            
+            let isCriticalError = false; let isWarning = false;
+            let statusKerja = job.status || "Unknown";
+            let alasan = historyDetail.alasan && historyDetail.alasan !== "-" ? historyDetail.alasan : historyDetail.uraian || "-";
+            let alasanLower = alasan.toLowerCase();
+
+            // Logika Visibilitas Rantai Pasok (Supply Chain)
+            let supplyChainBadge = `<span class="badge badge-success">Material Terpenuhi</span>`;
+            if(alasanLower.includes('material') || alasanLower.includes('barang') || alasanLower.includes('part')) {
+                supplyChainBadge = `<span class="badge badge-danger pulse">Bottleneck Material / Gudang</span>`;
+            }
+
+            // Logika Overdue Waktu
+            let overdueText = "";
+            if(terpakai > target && target > 0) {
+                totalDefisitWaktuJam += (terpakai - target);
+                overdueText = `<br><span style="color:var(--danger-color); font-weight:bold; font-size:11px;">+ ${(terpakai - target).toFixed(1)} Jam (Overdue)</span>`;
+            }
+
+            if(!statusKerja.includes('Stoppage') && persentaseWaktu >= 90 && persentaseWaktu <= 100) { isWarning = true; }
+            if(statusKerja.includes('Stoppage') || statusKerja.includes('Idle Time')) {
+                totalIdleCases++; isCriticalError = true; alertsActive = true;
+                alertContent.innerHTML += `<p class="pulse" style="color:var(--danger-color); margin: 5px 0;">🛑 <b>STOPPAGE:</b> SPP <b>${spp}</b> tertahan. Alasan: ${alasan}.</p>`;
+            }
+
+            const tr = document.createElement('tr');
+            if(isCriticalError) tr.className = 'alert-row'; else if(isWarning) tr.className = 'warning-row';
+            const statusBadge = isCriticalError ? 'badge-danger' : (statusKerja.includes('Takeover') ? 'badge-warning' : 'badge-info');
+
+            tr.innerHTML = `
+                <td><strong style="color:var(--neon-cyan)">${spp}</strong></td>
+                <td>${job.namaProduk}</td>
+                <td>${job.operator}</td>
+                <td><span class="badge ${statusBadge}">${statusKerja}</span></td>
+                <td>${supplyChainBadge}</td>
+                <td>
+                    <div class="pct-bar-container">
+                        <div style="height: 100%; width: ${Math.min(persentaseWaktu, 100)}%; background: ${isWarning || terpakai > target ? 'var(--danger-color)' : 'var(--success-color)'};"></div>
+                    </div>
+                    ${terpakai.toFixed(1)} / ${target} Jam (${persentaseWaktu.toFixed(0)}%) ${overdueText}
+                </td>
+                <td style="max-width:200px; overflow:hidden; text-overflow:ellipsis;" title="${alasan}">${alasan}</td>
+            `;
+            tbodyActive.appendChild(tr);
+        }
+        if(totalActiveSPP === 0) tbodyActive.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 20px; color:#6b7280;">Tidak ada aktivitas SPP aktif saat ini.</td></tr>`;
+
+        // 3. Akumulasi Data untuk Proporsi & Kinerja Operator
+        let totalDoneSystemWide = 0; let totalOnTimeSystemWide = 0;
+
+        for (let key in historyData) {
+            let item = historyData[key]; let op = item.operator; if (!op) continue;
+
+            if (!opMetrics[op]) opMetrics[op] = { 
+                totalLog: 0, validLogs: 0, validPhotos: 0, productVariants: new Set(), 
+                countSelesai: 0, countStoppage: 0, countIdle: 0, countTakeover: 0, countLainnya: 0 
+            };
+            
+            let m = opMetrics[op];
+            m.totalLog++;
+            if (item.uraian && item.uraian.trim().length > 10) m.validLogs++;
+            if (item.foto && !item.foto.includes("TIDAK ADA")) m.validPhotos++;
+            if (item.namaProduk) m.productVariants.add(item.namaProduk);
+
+            // Perhitungan Distribusi Status
+            let kondisi = item.kondisi || "";
+            if (kondisi.includes("Selesai") || kondisi.includes("Lembur")) m.countSelesai++;
+            else if (kondisi.includes("Stoppage")) m.countStoppage++;
+            else if (kondisi.includes("Idle Time")) m.countIdle++;
+            else if (kondisi.includes("Takeover")) m.countTakeover++;
+            else m.countLainnya++;
+
+            // Evaluasi KPI Eksekutif
+            let isCompleted = kondisi.includes("Selesai") || kondisi.includes("Lembur");
+            if (isCompleted) {
+                if (!kpiScores[op]) kpiScores[op] = { totalDone: 0, early: 0, onTime: 0, overdue: 0, totalScore: 0 };
+                let ks = kpiScores[op]; ks.totalDone++; totalDoneSystemWide++;
+
+                let baseScore = 90;
+                if (kondisi === "Selesai Tepat Waktu") { ks.onTime++; baseScore = 100; totalOnTimeSystemWide++; }
+                else if (kondisi === "Selesai Awal") { ks.early++; baseScore = 110; totalOnTimeSystemWide++; }
+                else if (kondisi.includes("Lembur")) { ks.overdue++; baseScore = 80; }
+
+                let actMP = sppWorkers[item.noSpp] ? sppWorkers[item.noSpp].size : 1;
+                let stdMP = item.stdManpower || 1;
+                ks.totalScore += (baseScore - (actMP > stdMP ? (actMP - stdMP) * 15 : (actMP < stdMP && actMP > 0 ? -10 : 0)));
+            }
+        }
+
+        // 4. Render Tabel 2: Persentase Distribusi Kerja
+        let hasPerfData = false;
+        for (let op in opMetrics) {
+            hasPerfData = true; let m = opMetrics[op];
+            
+            let complianceScore = m.totalLog > 0 ? (((m.validLogs / m.totalLog) * 50) + ((m.validPhotos / m.totalLog) * 50)).toFixed(0) : 0;
+            let docBadgeClass = complianceScore >= 80 ? 'badge-success' : (complianceScore >= 50 ? 'badge-warning' : 'badge-danger');
+            
+            // Kalkulasi Persentase
+            let pctSelesai = ((m.countSelesai / m.totalLog) * 100).toFixed(0);
+            let pctStoppage = ((m.countStoppage / m.totalLog) * 100).toFixed(0);
+            let pctIdle = ((m.countIdle / m.totalLog) * 100).toFixed(0);
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><strong>${op}</strong><br><small style="color:#6b7280;">Total: ${m.totalLog} Log Transaksi</small></td>
+                <td><span class="badge ${docBadgeClass}">${complianceScore}% Patuh</span></td>
+                <td><span class="badge badge-purple">${m.productVariants.size} Jenis</span></td>
+                <td>
+                    <div class="pct-bar-container">
+                        <div class="pct-segment-success" style="width: ${pctSelesai}%;" title="Selesai: ${pctSelesai}%"></div>
+                        <div class="pct-segment-danger" style="width: ${pctStoppage}%;" title="Stoppage: ${pctStoppage}%"></div>
+                        <div class="pct-segment-warning" style="width: ${pctIdle}%;" title="Idle: ${pctIdle}%"></div>
+                    </div>
+                    <span style="font-size:11px; color:var(--success-color); font-weight:bold;">✅ ${pctSelesai}% Selesai</span> | 
+                    <span style="font-size:11px; color:var(--danger-color); font-weight:bold;">🛑 ${pctStoppage}% Stoppage</span> | 
+                    <span style="font-size:11px; color:var(--warning-color); font-weight:bold;">⏳ ${pctIdle}% Idle/Lainnya</span>
+                </td>
+                <td><span class="badge ${m.countStoppage > 3 ? 'badge-danger' : 'badge-info'}">${m.countStoppage}x Terkendala</span></td>
+            `;
+            tbodyPerf.appendChild(tr);
+        }
+        if (!hasPerfData) tbodyPerf.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:20px;">Belum ada rekam jejak.</td></tr>`;
+
+        // 5. Render Tabel 3: Dashboard KPI Eksekutif (Overdue Tracking)
+        let hasKPIData = false;
+        for (let op in kpiScores) {
+            hasKPIData = true; let ks = kpiScores[op];
+            let finalScore = ks.totalDone > 0 ? Math.min((ks.totalScore / ks.totalDone), 100) : 0;
+            let badgeClass = finalScore >= 90 ? "badge-success" : (finalScore >= 75 ? "badge-warning" : "badge-danger");
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><strong>${op}</strong></td>
+                <td><strong>${ks.totalDone} Unit</strong></td>
+                <td><span style="color:var(--success-color); font-weight:bold;">${ks.early}x Awal</span></td>
+                <td><span style="color:var(--neon-cyan); font-weight:bold;">${ks.onTime}x Tepat</span></td>
+                <td><span style="color:var(--danger-color); font-weight:bold;">${ks.overdue}x Overdue (Terlambat)</span></td>
+                <td><span class="badge ${badgeClass}" style="font-size: 13px; padding: 6px 12px;">${finalScore.toFixed(1)} / 100</span></td>
+            `;
+            tbodyKPI.appendChild(tr);
+        }
+        if (!hasKPIData) tbodyKPI.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:20px;">Belum ada tugas selesai.</td></tr>`;
+
+        // 6. Global KPI Update
+        document.getElementById('kpi-idle').innerText = totalIdleCases + ' Kasus';
+        document.getElementById('kpi-time-deficit').innerText = totalDefisitWaktuJam.toFixed(1) + ' Jam';
+        document.getElementById('kpi-compliance').innerText = totalDoneSystemWide > 0 ? ((totalOnTimeSystemWide / totalDoneSystemWide) * 100).toFixed(0) + '%' : '0%';
+        document.getElementById('kpi-oee').innerText = totalActiveSPP > 0 ? (((totalActiveSPP - totalIdleCases) / totalActiveSPP) * 100).toFixed(1) + '%' : '100%';
+        document.getElementById('live-alerts').style.display = alertsActive ? 'block' : 'none';
+    }
+</script>
+</body>
+</html>
