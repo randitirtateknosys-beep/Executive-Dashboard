@@ -165,12 +165,12 @@
     </div>
 
     <div class="section-panel panel-executive" id="export-panel-3">
-        <h2 style="margin-top:0; color:var(--gold); font-size: 16px;">3. 🏆 Dashboard KPI & Evaluasi (Sistem Penilaian Eksekutif)</h2>
+        <h2 style="margin-top:0; color:var(--gold); font-size: 16px;">3. 🏆 Dashboard KPI & Evaluasi (Sistem Penilaian Tim Eksekutif)</h2>
         <table id="kpi-scoring-table" class="table-executive">
             <thead>
                 <tr>
                     <th>Nama Operator</th>
-                    <th>Total Diselesaikan</th>
+                    <th>Total SPP Diselesaikan</th>
                     <th>Selesai Awal (+Bonus)</th>
                     <th>Selesai Tepat Waktu</th>
                     <th>Penyelesaian Melewati Target (Overdue)</th>
@@ -264,7 +264,6 @@
     function initCloudSyncChart() {
         const ctx = document.getElementById('cloudSyncChart').getContext('2d');
         
-        // Buat data array awal (kosong/nol)
         const initialData = Array(20).fill(10); 
         const labels = Array(20).fill('');
 
@@ -338,7 +337,7 @@
         let opMetrics = {}; let sppWorkers = {}; let kpiScores = {};
         let latestHistoryInfo = {};
 
-        // 1. Kumpulkan histori terbaru per SPP
+        // 1. Kumpulkan histori terbaru per SPP & Kumpulkan seluruh kontributor tim operator (sppWorkers)
         for (let key in historyData) {
             let item = historyData[key];
             if (!latestHistoryInfo[item.noSpp] || new Date(item.waktu) > new Date(latestHistoryInfo[item.noSpp].waktu)) {
@@ -429,22 +428,40 @@
             else m.countLainnya++;
             
             let isCompleted = kondisi.includes("Selesai") || kondisi.includes("Lembur");
+            
+            // SISTEM ADIL (TEAM-BASED EVALUATION): Evaluasi diberikan kepada seluruh anggota tim pada SPP yang selesai
             if (isCompleted) {
-                if (!kpiScores[op]) kpiScores[op] = { totalDone: 0, early: 0, onTime: 0, overdue: 0, totalScore: 0 };
-                let ks = kpiScores[op]; ks.totalDone++; totalDoneSystemWide++;
-
+                totalDoneSystemWide++;
                 let baseScore = 90;
-                if (kondisi === "Selesai Tepat Waktu") { ks.onTime++; baseScore = 100; totalOnTimeSystemWide++; }
-                else if (kondisi === "Selesai Awal") { ks.early++; baseScore = 110; totalOnTimeSystemWide++; }
-                else if (kondisi.includes("Lembur")) { ks.overdue++; baseScore = 80; }
+                if (kondisi === "Selesai Tepat Waktu") { baseScore = 100; totalOnTimeSystemWide++; }
+                else if (kondisi === "Selesai Awal") { baseScore = 110; totalOnTimeSystemWide++; }
+                else if (kondisi.includes("Lembur")) { baseScore = 80; }
 
-                let actMP = sppWorkers[item.noSpp] ? sppWorkers[item.noSpp].size : 1;
+                let teamWorkers = sppWorkers[item.noSpp] || new Set([item.operator]);
+                let actMP = teamWorkers.size;
                 let stdMP = item.stdManpower || 1;
-                ks.totalScore += (baseScore - (actMP > stdMP ? (actMP - stdMP) * 15 : (actMP < stdMP && actMP > 0 ? -10 : 0)));
+                let penaltyManpower = 0;
+
+                if (actMP > stdMP) penaltyManpower = (actMP - stdMP) * 15;
+                else if (actMP < stdMP && actMP > 0) penaltyManpower = -10;
+
+                let finalJobScore = baseScore - penaltyManpower;
+
+                // Distribusikan poin ke setiap operator dalam tim
+                teamWorkers.forEach(member => {
+                    if (!kpiScores[member]) kpiScores[member] = { totalDone: 0, early: 0, onTime: 0, overdue: 0, totalScore: 0 };
+                    let ks = kpiScores[member];
+                    ks.totalDone++;
+                    ks.totalScore += finalJobScore;
+
+                    if (kondisi === "Selesai Tepat Waktu") ks.onTime++;
+                    else if (kondisi === "Selesai Awal") ks.early++;
+                    else if (kondisi.includes("Lembur")) ks.overdue++;
+                });
             }
         }
 
-        // 4. Render Tabel 2: Persentase Distribusi Kerja (DIKEMBALIKAN)
+        // 4. Render Tabel 2: Persentase Distribusi Kerja
         let hasPerfData = false;
         for (let op in opMetrics) {
             hasPerfData = true; let m = opMetrics[op];
@@ -477,7 +494,7 @@
         }
         if (!hasPerfData) tbodyPerf.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:20px;">Belum ada rekam jejak.</td></tr>`;
 
-        // 5. Render Tabel 3: Dashboard KPI Eksekutif
+        // 5. Render Tabel 3: Dashboard KPI Eksekutif (Sistem Evaluasi Tim yang Setara)
         let hasKPIData = false;
         for (let op in kpiScores) {
             hasKPIData = true; let ks = kpiScores[op];
@@ -487,7 +504,7 @@
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td><strong>${op}</strong></td>
-                <td><strong>${ks.totalDone} Unit</strong></td>
+                <td><strong>${ks.totalDone} SPP</strong></td>
                 <td><span style="color:var(--success-color); font-weight:bold;">${ks.early}x Awal</span></td>
                 <td><span style="color:var(--neon-cyan); font-weight:bold;">${ks.onTime}x Tepat</span></td>
                 <td><span style="color:var(--danger-color); font-weight:bold;">${ks.overdue}x Overdue (Terlambat)</span></td>
