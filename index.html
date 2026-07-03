@@ -131,8 +131,8 @@
         <table id="mgmt-table">
             <thead>
                 <tr>
-                    <th>No SPP</th>
-                    <th>Nama Produk</th>
+                    <th>No SPP & No Produksi</th>
+                    <th>Nama & No Produk</th>
                     <th>Operator Terakhir</th>
                     <th>Status Kerja</th>
                     <th>Status Rantai Pasok</th>
@@ -399,6 +399,10 @@
             let statusKerja = job.status || "Unknown";
             let alasan = historyDetail.alasan && historyDetail.alasan !== "-" ? historyDetail.alasan : historyDetail.uraian || "-";
             let alasanLower = alasan.toLowerCase();
+            
+            // Ambil No Produksi & No Produk
+            let noProd = job.noProduksi || historyDetail.noProduksi || '-';
+            let noProdukItem = job.noProduk || historyDetail.noProduk || '-';
 
             let supplyChainBadge = `<span class="badge badge-success">Material Terpenuhi</span>`;
             if(alasanLower.includes('material') || alasanLower.includes('barang') || alasanLower.includes('part')) {
@@ -422,8 +426,14 @@
             const statusBadge = isCriticalError ? 'badge-danger' : (statusKerja.includes('Takeover') ? 'badge-warning' : 'badge-info');
 
             tr.innerHTML = `
-                <td><strong style="color:var(--neon-cyan)">${displaySpp}</strong></td>
-                <td>${job.namaProduk || '-'}</td>
+                <td>
+                    <strong style="color:var(--neon-cyan)">${displaySpp}</strong><br>
+                    <span style="font-size:11px; color:#6b7280;">No Prod: <strong>${noProd}</strong></span>
+                </td>
+                <td>
+                    ${job.namaProduk || '-'}<br>
+                    <span style="font-size:11px; color:#6b7280;">No Produk: <strong>${noProdukItem}</strong></span>
+                </td>
                 <td>${job.operator || '-'}</td>
                 <td><span class="badge ${statusBadge}">${statusKerja}</span></td>
                 <td>${supplyChainBadge}</td>
@@ -597,7 +607,9 @@
                         <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
                             <div>
                                 <span style="font-size: 15px; font-weight: 700; color: #065f46;">✅ NO. SPP: ${spp} (SELESAI)</span>
+                                <span style="margin-left: 15px; font-size: 13px; font-weight: 600; color: #047857;">📝 No Produksi: ${sppInfo.noProduksi || '-'}</span>
                                 <span style="margin-left: 15px; font-weight: 600; color: var(--text-main);">🛒 Produk: ${sppInfo.namaProduk || 'N/A'}</span>
+                                <span style="margin-left: 15px; font-size: 13px; font-weight: 600; color: #4b5563;">📦 No Produk: ${sppInfo.noProduk || '-'}</span>
                                 <span class="badge badge-success" style="margin-left: 10px;">${sppInfo.kategori || 'Reguler'}</span>
                             </div>
                             <div style="font-weight: 600; color: #059669;">
@@ -613,7 +625,8 @@
                     let statusBadge = (item.kondisi || "").includes("Selesai") ? "badge-success" : ((item.kondisi || "").includes("Lembur") ? "badge-danger" : "badge-warning");
 
                     const tr = document.createElement("tr");
-                    tr.setAttribute('data-search-completed', `${item.formNo || ''} ${item.operator || ''} ${spp} ${item.namaProduk || ''} ${item.kondisi || ''} ${item.uraian || ''}`.toLowerCase());
+                    // Update data-search agar mencakup pencarian noProduksi dan noProduk
+                    tr.setAttribute('data-search-completed', `${item.formNo || ''} ${item.operator || ''} ${spp} ${item.namaProduk || ''} ${item.kondisi || ''} ${item.uraian || ''} ${item.noProduksi || ''} ${item.noProduk || ''}`.toLowerCase());
 
                     tr.innerHTML = `
                         <td><strong style="color:var(--neon-cyan);">${item.formNo || '-'}</strong></td>
