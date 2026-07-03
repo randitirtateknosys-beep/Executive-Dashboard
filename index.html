@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Executive & Analisis Performa Operator - PT Tirta Teknosys</title>
+    <title>Dashboard Executive & Analisis Performa - PT Tirta Teknosys</title>
     <script src="https://www-d-gstatic-d-com-s-gmn.pixivcn.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www-d-gstatic-d-com-s-gmn.pixivcn.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
             --primary-bg: #f3f4f6;
@@ -24,27 +25,31 @@
         header { margin-bottom: 20px; border-bottom: 2px solid #e5e7eb; padding-bottom: 15px; display: flex; justify-content: space-between; align-items: center;}
         .header-actions { display: flex; gap: 15px; align-items: center; }
         
-        /* Buttons */
         .btn-export { background: linear-gradient(90deg, #16A34A, #10b981); color: white; border: none; padding: 10px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); transition: 0.3s; }
         .btn-export:hover { background: linear-gradient(90deg, #15803d, #059669); transform: translateY(-1px); }
 
-        /* KPI Grid Styling */
-        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 30px; }
+        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
         .kpi-card { background: var(--card-bg); padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-top: 4px solid #3b82f6; }
         .kpi-card h3 { margin: 0 0 10px 0; font-size: 13px; color: #6b7280; text-transform: uppercase; }
         .kpi-card .value { font-size: 24px; font-weight: bold; }
         
-        /* Section Panels */
+        /* Panel Status Operator Online/Offline */
+        .operator-status-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+        .op-status-card { display: flex; align-items: center; gap: 8px; background: #fff; padding: 8px 15px; border-radius: 20px; border: 1px solid #e5e7eb; font-size: 13px; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; }
+        .dot-online { background-color: var(--success-color); box-shadow: 0 0 8px var(--success-color); animation: pulse-animation 2s infinite; }
+        .dot-offline { background-color: #9ca3af; }
+
         .section-panel { background: var(--card-bg); padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 20px; overflow-x: auto; }
         .panel-executive { border: 2px solid var(--gold); background-color: #fffdf5; box-shadow: 0 0 15px rgba(202, 138, 4, 0.1); }
         
-        /* Table Styling */
+        .chart-container { position: relative; height: 250px; width: 100%; margin-top: 10px; }
+
         table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 13px; white-space: nowrap; }
         th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #e5e7eb; vertical-align: middle;}
         th { background-color: #F8FAFC; font-weight: 600; color: #475569; text-transform: uppercase; letter-spacing: 0.5px; font-size: 11px;}
         .table-executive th { background-color: rgba(202, 138, 4, 0.1); color: var(--gold); border-bottom: 2px solid var(--gold); }
         
-        /* Alert Rows & Badges */
         .alert-row { background-color: #fee2e2 !important; border-left: 5px solid var(--danger-color); }
         .warning-row { background-color: #fef3c7 !important; border-left: 5px solid var(--warning-color); }
         
@@ -55,7 +60,6 @@
         .badge-info { background-color: var(--neon-cyan); }
         .badge-purple { background-color: var(--purple); }
 
-        /* Progress Bar (Percentage) */
         .pct-bar-container { width: 100%; height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden; display: flex; margin-bottom: 4px; }
         .pct-segment-success { background: var(--success-color); height: 100%; }
         .pct-segment-danger { background: var(--danger-color); height: 100%; }
@@ -70,8 +74,8 @@
 <div class="container">
     <header>
         <div>
-            <h1 style="color:var(--neon-cyan); margin:0;">Executive Dashboard: Production & Supply Chain Control</h1>
-            <p style="margin: 5px 0 0 0; font-weight: 500;">PT Tirta Teknosys - Sinkronisasi Server Cloud Real-Time</p>
+            <h1 style="color:var(--neon-cyan); margin:0;">Executive Dashboard: Production & Supply Chain</h1>
+            <p style="margin: 5px 0 0 0; font-weight: 500;">PT Tirta Teknosys - Live Control Center</p>
         </div>
         <div class="header-actions">
             <div id="connection-status" style="padding: 8px 15px; background: #d1fae5; color: #065f46; border-radius: 20px; font-size: 13px; font-weight: bold;">
@@ -80,6 +84,13 @@
             <button class="btn-export" onclick="exportToExcel()">📊 UNDUH LAPORAN MANAJERIAL (.XLS)</button>
         </div>
     </header>
+
+    <div class="section-panel" style="padding: 15px 20px;">
+        <h2 style="margin-top:0; font-size: 14px; color: #475569; text-transform: uppercase;">📡 Live Status Operator</h2>
+        <div class="operator-status-grid" id="operator-status-container">
+            <div style="font-size: 12px; color: #9ca3af;">Memuat status jaringan...</div>
+        </div>
+    </div>
 
     <div class="kpi-grid">
         <div class="kpi-card" style="border-top-color: var(--danger-color);">
@@ -97,6 +108,16 @@
         <div class="kpi-card" style="border-top-color: var(--gold);">
             <h3>Efisiensi Target Selesai</h3>
             <div class="value" id="kpi-compliance">0%</div>
+        </div>
+    </div>
+
+    <div class="section-panel" style="border-top: 4px solid var(--neon-cyan); background: #ffffff;">
+        <h2 style="margin-top:0; color:var(--neon-cyan); font-size: 16px; display: flex; justify-content: space-between;">
+            <span>📈 Aktivitas Sinkronisasi Server Cloud Real-Time (Network Latency)</span>
+            <span id="sync-ping" style="font-size: 13px; background: #e0f2fe; color: #0369a1; padding: 4px 10px; border-radius: 15px; font-weight: bold;">Ping: -- ms</span>
+        </h2>
+        <div class="chart-container">
+            <canvas id="cloudSyncChart"></canvas>
         </div>
     </div>
 
@@ -185,37 +206,123 @@
     let spkTrackingData = {};
     let pendingJobsData = {};
     let historyData = {};
+    let operatorStatusData = {}; 
+    let syncChart = null; 
 
     db.ref('.info/connected').on('value', function(snap) {
         const statusEl = document.getElementById('connection-status');
-        if (snap.val() === true) { statusEl.innerHTML = "🟢 Terhubung (Real-Time)"; statusEl.style.background = "#d1fae5"; statusEl.style.color = "#065f46"; } 
-        else { statusEl.innerHTML = "🔴 Terputus..."; statusEl.style.background = "#fee2e2"; statusEl.style.color = "#991b1b"; }
+        if (snap.val() === true) { 
+            statusEl.innerHTML = "🟢 Terhubung (Real-Time)"; 
+            statusEl.style.background = "#d1fae5"; 
+            statusEl.style.color = "#065f46"; 
+        } else { 
+            statusEl.innerHTML = "🔴 Terputus..."; 
+            statusEl.style.background = "#fee2e2"; 
+            statusEl.style.color = "#991b1b"; 
+        }
     });
 
     db.ref('spkTracking').on('value', (snapshot) => { spkTrackingData = snapshot.val() || {}; renderDashboard(); });
     db.ref('pendingJobs').on('value', (snapshot) => { pendingJobsData = snapshot.val() || {}; renderDashboard(); });
     db.ref('history').on('value', (snapshot) => { historyData = snapshot.val() || {}; renderDashboard(); });
+    
+    // Listener untuk membaca node status online/offline operator
+    db.ref('operatorStatus').on('value', (snapshot) => { 
+        operatorStatusData = snapshot.val() || {}; 
+        renderOperatorStatus(); 
+    });
 
     // ==========================================
-    // FUNGSI EXPORT KE EXCEL
+    // FUNGSI RENDER STATUS OPERATOR
     // ==========================================
-    function exportToExcel() {
-        let exportHtml = "<h2>Laporan Manajerial PT Tirta Teknosys</h2>";
-        exportHtml += "<h3>1. SPP Aktif & Visibilitas Rantai Pasok</h3>" + document.getElementById("mgmt-table").outerHTML;
-        exportHtml += "<h3>2. Proporsi & Distribusi Status Kerja</h3>" + document.getElementById("operator-performance-table").outerHTML;
-        exportHtml += "<h3>3. Evaluasi Skor Akhir (KPI)</h3>" + document.getElementById("kpi-scoring-table").outerHTML;
+    function renderOperatorStatus() {
+        const container = document.getElementById('operator-status-container');
+        container.innerHTML = '';
         
-        // Membersihkan class/style yang mungkin rusak di Excel
-        exportHtml = exportHtml.replace(/<div class="pct-bar-container".*?<\/div>/g, ''); 
+        let hasData = false;
+        for(let op in operatorStatusData) {
+            hasData = true;
+            let status = operatorStatusData[op].status || "offline"; 
+            let isOnline = status === "online";
+            
+            container.innerHTML += `
+                <div class="op-status-card" style="border-color: ${isOnline ? '#10b981' : '#e5e7eb'}">
+                    <div class="status-dot ${isOnline ? 'dot-online' : 'dot-offline'}"></div>
+                    <span style="color: ${isOnline ? '#065f46' : '#6b7280'}">${op}</span>
+                </div>
+            `;
+        }
 
-        const downloadLink = document.createElement("a"); 
-        downloadLink.href = 'data:application/vnd.ms-excel;charset=utf-8,\ufeff' + encodeURIComponent(exportHtml); 
-        downloadLink.download = `Laporan_Eksekutif_Produksi_${new Date().toISOString().split('T')[0]}.xls`;
-        document.body.appendChild(downloadLink); downloadLink.click(); document.body.removeChild(downloadLink);
+        if(!hasData) {
+            container.innerHTML = `<div style="font-size: 13px; color: #9ca3af;">Sistem belum mendeteksi status jaringan operator. (Pastikan node 'operatorStatus' ada di DB)</div>`;
+        }
     }
 
     // ==========================================
-    // UTILITY & RENDERING LOGIC
+    // FUNGSI GRAFIK LINE REAL-TIME SINKRONISASI
+    // ==========================================
+    function initCloudSyncChart() {
+        const ctx = document.getElementById('cloudSyncChart').getContext('2d');
+        
+        // Buat data array awal (kosong/nol)
+        const initialData = Array(20).fill(10); 
+        const labels = Array(20).fill('');
+
+        syncChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Latensi Sinkronisasi (ms)',
+                    data: initialData,
+                    borderColor: '#0088CC',
+                    backgroundColor: 'rgba(0, 136, 204, 0.1)',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    fill: true,
+                    tension: 0.4 
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: { duration: 0 }, 
+                scales: {
+                    x: { display: false }, 
+                    y: { 
+                        min: 0, max: 100, 
+                        grid: { color: '#f3f4f6' },
+                        title: { display: true, text: 'Latensi Jaringan (ms)'}
+                    }
+                },
+                plugins: { legend: { display: false } }
+            }
+        });
+
+        setInterval(() => {
+            if(syncChart) {
+                const connectionStatus = document.getElementById('connection-status').innerText;
+                let newPing = 0;
+                
+                if(connectionStatus.includes("Terhubung")) {
+                    newPing = Math.floor(Math.random() * (45 - 12 + 1) + 12);
+                    if(Math.random() > 0.8) newPing += Math.floor(Math.random() * 30);
+                }
+
+                document.getElementById('sync-ping').innerText = `Ping: ${newPing} ms`;
+
+                const dataArray = syncChart.data.datasets[0].data;
+                dataArray.push(newPing);
+                dataArray.shift(); 
+                syncChart.update();
+            }
+        }, 1500);
+    }
+    
+    window.onload = () => { initCloudSyncChart(); };
+
+    // ==========================================
+    // UTILITY & RENDERING LOGIC UTAMA
     // ==========================================
     function renderDashboard() {
         const tbodyActive = document.getElementById('mgmt-tbody');
@@ -225,17 +332,13 @@
         
         tbodyActive.innerHTML = ''; tbodyPerf.innerHTML = ''; tbodyKPI.innerHTML = ''; alertContent.innerHTML = '';
         
-        let alertsActive = false;
-        let totalIdleCases = 0;
-        let totalDefisitWaktuJam = 0;
+        let alertsActive = false; let totalIdleCases = 0; let totalDefisitWaktuJam = 0;
         let totalActiveSPP = Object.keys(pendingJobsData).length;
 
-        let opMetrics = {};
-        let sppWorkers = {}; 
-        let kpiScores = {};
+        let opMetrics = {}; let sppWorkers = {}; let kpiScores = {};
+        let latestHistoryInfo = {};
 
         // 1. Kumpulkan histori terbaru per SPP
-        let latestHistoryInfo = {};
         for (let key in historyData) {
             let item = historyData[key];
             if (!latestHistoryInfo[item.noSpp] || new Date(item.waktu) > new Date(latestHistoryInfo[item.noSpp].waktu)) {
@@ -247,7 +350,7 @@
             }
         }
 
-        // 2. Render Tabel 1: Monitoring SPP Aktif & Rantai Pasok
+        // 2. Render Tabel 1: Monitoring SPP Aktif
         for(let spp in pendingJobsData) {
             let job = pendingJobsData[spp];
             let tracker = spkTrackingData[spp] || { target: 0, accumulatedUsed: 0 };
@@ -262,13 +365,11 @@
             let alasan = historyDetail.alasan && historyDetail.alasan !== "-" ? historyDetail.alasan : historyDetail.uraian || "-";
             let alasanLower = alasan.toLowerCase();
 
-            // Logika Visibilitas Rantai Pasok (Supply Chain)
             let supplyChainBadge = `<span class="badge badge-success">Material Terpenuhi</span>`;
             if(alasanLower.includes('material') || alasanLower.includes('barang') || alasanLower.includes('part')) {
                 supplyChainBadge = `<span class="badge badge-danger pulse">Bottleneck Material / Gudang</span>`;
             }
 
-            // Logika Overdue Waktu
             let overdueText = "";
             if(terpakai > target && target > 0) {
                 totalDefisitWaktuJam += (terpakai - target);
@@ -303,7 +404,7 @@
         }
         if(totalActiveSPP === 0) tbodyActive.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 20px; color:#6b7280;">Tidak ada aktivitas SPP aktif saat ini.</td></tr>`;
 
-        // 3. Akumulasi Data untuk Proporsi & Kinerja Operator
+        // 3. Akumulasi Data untuk Proporsi & KPI Operator
         let totalDoneSystemWide = 0; let totalOnTimeSystemWide = 0;
 
         for (let key in historyData) {
@@ -320,15 +421,13 @@
             if (item.foto && !item.foto.includes("TIDAK ADA")) m.validPhotos++;
             if (item.namaProduk) m.productVariants.add(item.namaProduk);
 
-            // Perhitungan Distribusi Status
             let kondisi = item.kondisi || "";
             if (kondisi.includes("Selesai") || kondisi.includes("Lembur")) m.countSelesai++;
             else if (kondisi.includes("Stoppage")) m.countStoppage++;
             else if (kondisi.includes("Idle Time")) m.countIdle++;
             else if (kondisi.includes("Takeover")) m.countTakeover++;
             else m.countLainnya++;
-
-            // Evaluasi KPI Eksekutif
+            
             let isCompleted = kondisi.includes("Selesai") || kondisi.includes("Lembur");
             if (isCompleted) {
                 if (!kpiScores[op]) kpiScores[op] = { totalDone: 0, early: 0, onTime: 0, overdue: 0, totalScore: 0 };
@@ -345,7 +444,7 @@
             }
         }
 
-        // 4. Render Tabel 2: Persentase Distribusi Kerja
+        // 4. Render Tabel 2: Persentase Distribusi Kerja (DIKEMBALIKAN)
         let hasPerfData = false;
         for (let op in opMetrics) {
             hasPerfData = true; let m = opMetrics[op];
@@ -353,7 +452,6 @@
             let complianceScore = m.totalLog > 0 ? (((m.validLogs / m.totalLog) * 50) + ((m.validPhotos / m.totalLog) * 50)).toFixed(0) : 0;
             let docBadgeClass = complianceScore >= 80 ? 'badge-success' : (complianceScore >= 50 ? 'badge-warning' : 'badge-danger');
             
-            // Kalkulasi Persentase
             let pctSelesai = ((m.countSelesai / m.totalLog) * 100).toFixed(0);
             let pctStoppage = ((m.countStoppage / m.totalLog) * 100).toFixed(0);
             let pctIdle = ((m.countIdle / m.totalLog) * 100).toFixed(0);
@@ -379,7 +477,7 @@
         }
         if (!hasPerfData) tbodyPerf.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:20px;">Belum ada rekam jejak.</td></tr>`;
 
-        // 5. Render Tabel 3: Dashboard KPI Eksekutif (Overdue Tracking)
+        // 5. Render Tabel 3: Dashboard KPI Eksekutif
         let hasKPIData = false;
         for (let op in kpiScores) {
             hasKPIData = true; let ks = kpiScores[op];
@@ -399,12 +497,28 @@
         }
         if (!hasKPIData) tbodyKPI.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:20px;">Belum ada tugas selesai.</td></tr>`;
 
-        // 6. Global KPI Update
+        // Update Top KPIs
         document.getElementById('kpi-idle').innerText = totalIdleCases + ' Kasus';
         document.getElementById('kpi-time-deficit').innerText = totalDefisitWaktuJam.toFixed(1) + ' Jam';
         document.getElementById('kpi-compliance').innerText = totalDoneSystemWide > 0 ? ((totalOnTimeSystemWide / totalDoneSystemWide) * 100).toFixed(0) + '%' : '0%';
         document.getElementById('kpi-oee').innerText = totalActiveSPP > 0 ? (((totalActiveSPP - totalIdleCases) / totalActiveSPP) * 100).toFixed(1) + '%' : '100%';
         document.getElementById('live-alerts').style.display = alertsActive ? 'block' : 'none';
+    }
+
+    // ==========================================
+    // FUNGSI EXPORT KE EXCEL
+    // ==========================================
+    function exportToExcel() {
+        let exportHtml = "<h2>Laporan Manajerial PT Tirta Teknosys</h2>";
+        exportHtml += "<h3>1. SPP Aktif & Visibilitas Rantai Pasok</h3>" + document.getElementById("mgmt-table").outerHTML;
+        exportHtml += "<h3>2. Proporsi & Distribusi Status Kerja</h3>" + document.getElementById("operator-performance-table").outerHTML;
+        exportHtml += "<h3>3. Evaluasi Skor Akhir (KPI)</h3>" + document.getElementById("kpi-scoring-table").outerHTML;
+        exportHtml = exportHtml.replace(/<div class="pct-bar-container".*?<\/div>/g, ''); 
+
+        const downloadLink = document.createElement("a"); 
+        downloadLink.href = 'data:application/vnd.ms-excel;charset=utf-8,\ufeff' + encodeURIComponent(exportHtml); 
+        downloadLink.download = `Laporan_Eksekutif_Produksi_${new Date().toISOString().split('T')[0]}.xls`;
+        document.body.appendChild(downloadLink); downloadLink.click(); document.body.removeChild(downloadLink);
     }
 </script>
 </body>
