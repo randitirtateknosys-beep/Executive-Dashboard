@@ -183,6 +183,32 @@
         </table>
     </div>
 
+    <!-- PANEL BARU: REKAM JEJAK SPP SELESAI -->
+    <div class="section-panel" id="export-panel-4" style="border-top: 4px solid var(--success-color);">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 10px;">
+            <h2 style="margin: 0; color:var(--success-color); font-size: 16px;">4. 📦 Rekam Jejak SPP Selesai (Arsip Produksi Tuntas Grouped by SPP)</h2>
+            <input type="text" id="searchCompletedInput" onkeyup="searchCompletedTable()" placeholder="🔍 Cari SPP Selesai (Ketik No SPP, Produk, Operator...)" style="padding: 8px 12px; width: 300px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 13px;">
+        </div>
+        <table id="completed-spp-table">
+            <thead>
+                <tr>
+                    <th>Kode Form</th>
+                    <th>Jam Mulai - Selesai</th>
+                    <th>Operator</th>
+                    <th>Durasi SPP Aktual</th>
+                    <th>Sisa Waktu Target</th>
+                    <th>Status Kerja</th>
+                    <th>Catatan Khusus</th>
+                    <th>Uraian Pekerjaan</th>
+                    <th>Visual</th>
+                </tr>
+            </thead>
+            <tbody id="completed-spp-tbody">
+                <tr><td colspan="9" style="text-align:center; color:#6b7280;">Memuat arsip SPP selesai...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
 </div>
 
 <script>
@@ -226,7 +252,6 @@
     db.ref('pendingJobs').on('value', (snapshot) => { pendingJobsData = snapshot.val() || {}; renderDashboard(); });
     db.ref('history').on('value', (snapshot) => { historyData = snapshot.val() || {}; renderDashboard(); });
     
-    // Listener untuk membaca node status online/offline operator
     db.ref('operatorStatus').on('value', (snapshot) => { 
         operatorStatusData = snapshot.val() || {}; 
         renderOperatorStatus(); 
@@ -337,26 +362,37 @@
         let opMetrics = {}; let sppWorkers = {}; let kpiScores = {};
         let latestHistoryInfo = {};
 
-        // 1. Kumpulkan histori terbaru per SPP & Kumpulkan seluruh kontributor tim operator (sppWorkers)
+        // 1. Kumpulkan histori terbaru per SPP & kontributor tim operator
         for (let key in historyData) {
             let item = historyData[key];
-            if (!latestHistoryInfo[item.noSpp] || new Date(item.waktu) > new Date(latestHistoryInfo[item.noSpp].waktu)) {
-                latestHistoryInfo[item.noSpp] = item;
+            if (!item.noSpp) continue;
+            
+            let sSpp = String(item.noSpp);
+            let safeKey = sSpp.replace(/[\.\#\$\/\[\]]/g, "_");
+
+            let timeVal = new Date(item.waktu).getTime();
+            let isLatest = !latestHistoryInfo[safeKey] || (isNaN(timeVal) ? true : timeVal > latestHistoryInfo[safeKey].timestamp);
+            
+            if (isLatest) {
+                latestHistoryInfo[safeKey] = { ...item, timestamp: isNaN(timeVal) ? 0 : timeVal };
             }
-            if(item.noSpp && item.operator) {
-                if(!sppWorkers[item.noSpp]) sppWorkers[item.noSpp] = new Set();
-                sppWorkers[item.noSpp].add(item.operator);
+
+            if(item.operator) {
+                if(!sppWorkers[safeKey]) sppWorkers[safeKey] = new Set();
+                sppWorkers[safeKey].add(item.operator);
             }
         }
 
         // 2. Render Tabel 1: Monitoring SPP Aktif
-        for(let spp in pendingJobsData) {
-            let job = pendingJobsData[spp];
-            let tracker = spkTrackingData[spp] || { target: 0, accumulatedUsed: 0 };
-            let historyDetail = latestHistoryInfo[spp] || {};
+        for(let safeSpp in pendingJobsData) {
+            let job = pendingJobsData[safeSpp];
+            let displaySpp = job.originalSpp || safeSpp; 
             
-            let terpakai = tracker.accumulatedUsed || 0;
-            let target = tracker.target || 0;
+            let tracker = spkTrackingData[safeSpp] || { target: 0, accumulatedUsed: 0 };
+            let historyDetail = latestHistoryInfo[safeSpp] || {};
+            
+            let terpakai = parseFloat(tracker.accumulatedUsed) || 0;
+            let target = parseFloat(tracker.target) || 0;
             let persentaseWaktu = target > 0 ? (terpakai / target) * 100 : 0;
             
             let isCriticalError = false; let isWarning = false;
@@ -378,7 +414,7 @@
             if(!statusKerja.includes('Stoppage') && persentaseWaktu >= 90 && persentaseWaktu <= 100) { isWarning = true; }
             if(statusKerja.includes('Stoppage') || statusKerja.includes('Idle Time')) {
                 totalIdleCases++; isCriticalError = true; alertsActive = true;
-                alertContent.innerHTML += `<p class="pulse" style="color:var(--danger-color); margin: 5px 0;">🛑 <b>STOPPAGE:</b> SPP <b>${spp}</b> tertahan. Alasan: ${alasan}.</p>`;
+                alertContent.innerHTML += `<p class="pulse" style="color:var(--danger-color); margin: 5px 0;">🛑 <b>STOPPAGE:</b> SPP <b>${displaySpp}</b> tertahan. Alasan: ${alasan}.</p>`;
             }
 
             const tr = document.createElement('tr');
@@ -386,9 +422,9 @@
             const statusBadge = isCriticalError ? 'badge-danger' : (statusKerja.includes('Takeover') ? 'badge-warning' : 'badge-info');
 
             tr.innerHTML = `
-                <td><strong style="color:var(--neon-cyan)">${spp}</strong></td>
-                <td>${job.namaProduk}</td>
-                <td>${job.operator}</td>
+                <td><strong style="color:var(--neon-cyan)">${displaySpp}</strong></td>
+                <td>${job.namaProduk || '-'}</td>
+                <td>${job.operator || '-'}</td>
                 <td><span class="badge ${statusBadge}">${statusKerja}</span></td>
                 <td>${supplyChainBadge}</td>
                 <td>
@@ -429,7 +465,6 @@
             
             let isCompleted = kondisi.includes("Selesai") || kondisi.includes("Lembur");
             
-            // SISTEM ADIL (TEAM-BASED EVALUATION): Evaluasi diberikan kepada seluruh anggota tim pada SPP yang selesai
             if (isCompleted) {
                 totalDoneSystemWide++;
                 let baseScore = 90;
@@ -437,9 +472,10 @@
                 else if (kondisi === "Selesai Awal") { baseScore = 110; totalOnTimeSystemWide++; }
                 else if (kondisi.includes("Lembur")) { baseScore = 80; }
 
-                let teamWorkers = sppWorkers[item.noSpp] || new Set([item.operator]);
+                let safeKey = item.noSpp ? String(item.noSpp).replace(/[\.\#\$\/\[\]]/g, "_") : "";
+                let teamWorkers = sppWorkers[safeKey] || new Set([item.operator]);
                 let actMP = teamWorkers.size;
-                let stdMP = item.stdManpower || 1;
+                let stdMP = parseInt(item.stdManpower) || 1;
                 let penaltyManpower = 0;
 
                 if (actMP > stdMP) penaltyManpower = (actMP - stdMP) * 15;
@@ -447,7 +483,6 @@
 
                 let finalJobScore = baseScore - penaltyManpower;
 
-                // Distribusikan poin ke setiap operator dalam tim
                 teamWorkers.forEach(member => {
                     if (!kpiScores[member]) kpiScores[member] = { totalDone: 0, early: 0, onTime: 0, overdue: 0, totalScore: 0 };
                     let ks = kpiScores[member];
@@ -494,7 +529,7 @@
         }
         if (!hasPerfData) tbodyPerf.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:20px;">Belum ada rekam jejak.</td></tr>`;
 
-        // 5. Render Tabel 3: Dashboard KPI Eksekutif (Sistem Evaluasi Tim yang Setara)
+        // 5. Render Tabel 3: Dashboard KPI Eksekutif
         let hasKPIData = false;
         for (let op in kpiScores) {
             hasKPIData = true; let ks = kpiScores[op];
@@ -514,6 +549,91 @@
         }
         if (!hasKPIData) tbodyKPI.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:20px;">Belum ada tugas selesai.</td></tr>`;
 
+        // =========================================================================
+        // 6. RENDER TABEL 4: REKAM JEJAK SPP SELESAI (GROUPED BY SPP)
+        // =========================================================================
+        const tbodyCompleted = document.getElementById('completed-spp-tbody');
+        tbodyCompleted.innerHTML = '';
+        
+        let groupedHistory = {};
+        for (let key in historyData) {
+            let item = historyData[key];
+            let spp = item.noSpp ? String(item.noSpp) : 'Tanpa SPP';
+            if (!groupedHistory[spp]) groupedHistory[spp] = [];
+            item.firebaseKey = key;
+            groupedHistory[spp].push(item);
+        }
+
+        // Filter hanya SPP yang sudah berstatus akhir Selesai/Lembur
+        let completedSpps = Object.keys(groupedHistory).filter(spp => {
+            let group = groupedHistory[spp];
+            group.sort((a, b) => {
+                let tA = new Date(a.waktu).getTime(); let tB = new Date(b.waktu).getTime();
+                return (isNaN(tB) ? 0 : tB) - (isNaN(tA) ? 0 : tA);
+            });
+            let latestLog = group[0];
+            let k = latestLog.kondisi || "";
+            return k.includes("Selesai") || k.includes("Lembur");
+        });
+
+        // Urutkan SPP Selesai dari aktivitas penyelesaian paling baru
+        completedSpps.sort((a, b) => {
+            let tA = new Date(groupedHistory[a][0].waktu).getTime();
+            let tB = new Date(groupedHistory[b][0].waktu).getTime();
+            return (isNaN(tB) ? 0 : tB) - (isNaN(tA) ? 0 : tA);
+        });
+
+        if (completedSpps.length === 0) {
+            tbodyCompleted.innerHTML = `<tr><td colspan="9" style="text-align:center; padding: 20px; color:#6b7280;">Belum ada arsip SPP yang selesai.</td></tr>`;
+        } else {
+            completedSpps.forEach(spp => {
+                let group = groupedHistory[spp];
+                let sppInfo = group[0]; // Ambil info dari log terbaru
+
+                let groupTr = document.createElement("tr");
+                groupTr.style.backgroundColor = "#ecfdf5"; // Hijau muda soft khas SPP selesai
+                groupTr.innerHTML = `
+                    <td colspan="9" style="padding: 12px 15px; border: 1px solid #a7f3d0;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+                            <div>
+                                <span style="font-size: 15px; font-weight: 700; color: #065f46;">✅ NO. SPP: ${spp} (SELESAI)</span>
+                                <span style="margin-left: 15px; font-weight: 600; color: var(--text-main);">🛒 Produk: ${sppInfo.namaProduk || 'N/A'}</span>
+                                <span class="badge badge-success" style="margin-left: 10px;">${sppInfo.kategori || 'Reguler'}</span>
+                            </div>
+                            <div style="font-weight: 600; color: #059669;">
+                                ⏱️ Target Standar Waktu: ${sppInfo.stdWaktu || '0'} Jam
+                            </div>
+                        </div>
+                    </td>
+                `;
+                tbodyCompleted.appendChild(groupTr);
+
+                group.forEach(item => {
+                    let colorSisa = parseFloat(item.waktuSisa) < 0 ? 'var(--danger-color)' : 'var(--success-color)';
+                    let statusBadge = (item.kondisi || "").includes("Selesai") ? "badge-success" : ((item.kondisi || "").includes("Lembur") ? "badge-danger" : "badge-warning");
+
+                    const tr = document.createElement("tr");
+                    tr.setAttribute('data-search-completed', `${item.formNo || ''} ${item.operator || ''} ${spp} ${item.namaProduk || ''} ${item.kondisi || ''} ${item.uraian || ''}`.toLowerCase());
+
+                    tr.innerHTML = `
+                        <td><strong style="color:var(--neon-cyan);">${item.formNo || '-'}</strong></td>
+                        <td>
+                            <div style="font-size:11px; color:#6b7280;">Mulai: ${item.jamMulai || '-'}</div>
+                            <div style="font-weight: 600; font-size:12px;">Akhir: ${item.waktu || '-'}</div>
+                        </td>
+                        <td><strong style="color: var(--text-main);">${item.operator || '-'}</strong></td>
+                        <td><strong style="color:var(--warning-color);">${item.waktuTerpakai || '0.0'} Jam</strong></td>
+                        <td><strong style="color:${colorSisa};">${item.waktuSisa || item.stdWaktu || '0.0'} Jam</strong></td>
+                        <td><span class="badge ${statusBadge}">${item.kondisi || '-'}</span></td>
+                        <td style="white-space: normal; min-width: 150px;">${item.alasan || '-'}</td>
+                        <td style="white-space: normal; min-width: 200px;">${item.uraian || '-'}</td>
+                        <td><span style="color:#6b7280; font-size:11px;">[${item.foto || 'TIDAK ADA'}]</span></td>
+                    `;
+                    tbodyCompleted.appendChild(tr);
+                });
+            });
+        }
+
         // Update Top KPIs
         document.getElementById('kpi-idle').innerText = totalIdleCases + ' Kasus';
         document.getElementById('kpi-time-deficit').innerText = totalDefisitWaktuJam.toFixed(1) + ' Jam';
@@ -523,13 +643,49 @@
     }
 
     // ==========================================
-    // FUNGSI EXPORT KE EXCEL
+    // FUNGSI PENCARIAN KHUSUS TABEL SPP SELESAI
+    // ==========================================
+    function searchCompletedTable() {
+        const filter = document.getElementById("searchCompletedInput").value.toLowerCase();
+        const tbody = document.getElementById("completed-spp-tbody");
+        const rows = tbody.getElementsByTagName("tr");
+        
+        let currentGroupHeader = null;
+        let showCurrentGroup = false;
+
+        for (let i = 0; i < rows.length; i++) {
+            let row = rows[i];
+            
+            if (row.children.length === 1 && row.children[0].colSpan === 9) {
+                currentGroupHeader = row;
+                showCurrentGroup = false; 
+                if (row.innerText.toLowerCase().includes(filter)) {
+                    showCurrentGroup = true;
+                    row.style.display = "";
+                } else {
+                    row.style.display = "none";
+                }
+            } else {
+                let searchData = row.getAttribute('data-search-completed') || "";
+                if (searchData.includes(filter) || showCurrentGroup) {
+                    row.style.display = "";
+                    if (currentGroupHeader) currentGroupHeader.style.display = ""; 
+                } else {
+                    row.style.display = "none";
+                }
+            }
+        }
+    }
+
+    // ==========================================
+    // FUNGSI EXPORT KE EXCEL (TERMASUK TABEL SPP SELESAI)
     // ==========================================
     function exportToExcel() {
         let exportHtml = "<h2>Laporan Manajerial PT Tirta Teknosys</h2>";
         exportHtml += "<h3>1. SPP Aktif & Visibilitas Rantai Pasok</h3>" + document.getElementById("mgmt-table").outerHTML;
         exportHtml += "<h3>2. Proporsi & Distribusi Status Kerja</h3>" + document.getElementById("operator-performance-table").outerHTML;
         exportHtml += "<h3>3. Evaluasi Skor Akhir (KPI)</h3>" + document.getElementById("kpi-scoring-table").outerHTML;
+        exportHtml += "<h3>4. Rekam Jejak SPP Selesai</h3>" + document.getElementById("completed-spp-table").outerHTML;
         exportHtml = exportHtml.replace(/<div class="pct-bar-container".*?<\/div>/g, ''); 
 
         const downloadLink = document.createElement("a"); 
